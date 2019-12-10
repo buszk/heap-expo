@@ -32,6 +32,7 @@
 #include <unordered_set>
 #include <vector>
 
+// #define DANG_DEBUG
 #ifdef DANG_DEBUG
 #define DEBUG_MSG(err) err
 #else
@@ -54,13 +55,12 @@ static std::string demangleName(std::string input) {
     }
 }
 
-
 static AllocaInst *getStackPtr(Value *V) {
     if (isa<AllocaInst>(V)) {
-        DEBUG_MSG(errs() << "Stack variable \n");
+        // DEBUG_MSG(errs() << "Stack variable \n");
         return dyn_cast<AllocaInst>(V);
     }
-    
+
     if (BitCastInst *BC = dyn_cast<BitCastInst>(V)) {
         return getStackPtr(BC->getOperand(0));
     } else if (PtrToIntInst *PI = dyn_cast<PtrToIntInst>(V)) {
@@ -69,12 +69,12 @@ static AllocaInst *getStackPtr(Value *V) {
         return getStackPtr(GEP->getPointerOperand());
     }
 
-    DEBUG_MSG(errs() << "Not a Stack variable \n");
+    // DEBUG_MSG(errs() << "Not a Stack variable \n");
     return nullptr;
 }
 
-static Instruction* nextInst(Instruction* I) {
-    BasicBlock::iterator it (I);
+static Instruction *nextInst(Instruction *I) {
+    BasicBlock::iterator it(I);
     return &*++it;
 }
 
@@ -89,6 +89,7 @@ struct LivenessAnalysis {
     std::unordered_map<Instruction *, std::set<AllocaInst *>> out;
     /* */
     std::unordered_set<StoreInst *> stores;
+    std::unordered_set<LoadInst *> loads;
 
     Module *M;
     Function *Func;
@@ -96,138 +97,309 @@ struct LivenessAnalysis {
     LivenessAnalysis(){};
 
     bool getStoreInstructionLiveness(
-        Function &F, std::vector<CallInst *> calls, std::set<AllocaInst *> vars,
+        Function &F, std::map<AllocaInst *, std::set<CallInst *>> calls, std::set<AllocaInst *> vars,
         std::unordered_map<AllocaInst *, std::vector<StoreInst *>>
-            stores_to_instr) {
+            &stores_to_instr, std::unordered_map<AllocaInst *, std::vector<LoadInst *>>
+            &loads_to_instr) {
         stores.clear();
+        loads.clear();
 
         for (AllocaInst *AI : vars) {
+            /* Backward sink to see which store instruction can call instructions reach */
+            {            
+                /* If a instruction can reach a target CallInst in calls */
+                std::unordered_map<Instruction *, bool> in;
+                std::unordered_map<Instruction *, bool> out;
+                /* Init result */
+                for (Instruction *ci : calls[AI]) {
+                    in[ci] = true;
+                }
 
-            /* If a instruction can reach a target CallInst in calls */
-            std::unordered_map<Instruction *, bool> in;
-            std::unordered_map<Instruction *, bool> out;
-            /* Init result */
-            for (Instruction *ci : calls) {
-                in[ci] = true;
-            }
-            for (auto si : stores_to_instr[AI]) {
-                in[si] = false;
-            }
-            bool changed = true;
+                // DEBUG_MSG(errs() << "stores_to_instr " << *AI << "\n");
+                // for (auto i : stores_to_instr[AI]) {
+                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
+                // }
+                // DEBUG_MSG(errs() << "loads_to_instr " << *AI << "\n");
+                // for (auto i : loads_to_instr[AI]) {
+                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
+                // }
+                // for (auto si : stores_to_instr[AI]) {
+                //     in[si] = false;
+                // }
+                bool changed = true;
 
-            while (changed) {
-                changed = false;
-                for (BasicBlock &BB : F) {
-                    for (auto it = BB.rbegin(), e = BB.rend(); it != e; it++) {
-                        Instruction *I = &*it;
-                        bool in_res = out[I];
+                while (changed) {
+                    changed = false;
+                    for (BasicBlock &BB : F) {
+                        for (auto it = BB.rbegin(), e = BB.rend(); it != e; it++) {
+                            Instruction *I = &*it;
+                            bool in_res = out[I] | in[I];
 
-                        if (isa<StoreInst>(I)) {
-                            StoreInst *SI = dyn_cast<StoreInst>(I);
+                            if (in_res != in[I]) {
+                                if (std::find(stores_to_instr[AI].begin(),
+                                              stores_to_instr[AI].end(), I)
+                                            == stores_to_instr[AI].end()) {
+                                    in[I] = in_res;
+                                    changed = true;
 
-                            if (SI->getValueOperand()
-                                    ->getType()
-                                    ->isPointerTy()) {
-                                AllocaInst *ai =
-                                    getStackPtr(SI->getPointerOperand());
-                                if (AI == ai) {
-                                    in_res = false;
-                                    if (out[I]) {
-                                        stores.insert(SI);
-                                    }
                                 }
                             }
-                        }
 
-                        if (in_res != in[I]) {
-                            in[I] = in_res;
-                            changed = true;
-                        }
+                            bool out_res;
 
-                        bool out_res = out[I];
+                            if (I == BB.getTerminator()) {
 
-                        if (out_res) {
-                            continue;
-                        }
+                                out_res = out[I];
 
-                        if (I == BB.getTerminator()) {
-
-                            if (isa<BranchInst>(I)) {
-                                BranchInst *BI = dyn_cast<BranchInst>(I);
-                                for (unsigned int i = 0;
-                                     i < BI->getNumSuccessors(); i++) {
-                                    BasicBlock *n = BI->getSuccessor(i);
-                                    Instruction *ni = &n->front();
-                                    while (ni != n->getTerminator() &&
-                                           !(isa<StoreInst>(ni) ||
-                                             isa<CallInst>(ni))) {
-                                        ni = nextInst(ni);
-                                    }
-                                    if (in[ni]) {
-                                        out_res = true;
-                                    }
+                                if (out_res) {
+                                    continue;
                                 }
-                            } else if (isa<SwitchInst>(I)) {
-                                SwitchInst *SI = dyn_cast<SwitchInst>(I);
-                                for (unsigned int i = 0;
-                                     i < SI->getNumSuccessors(); i++) {
-                                    BasicBlock *n = SI->getSuccessor(i);
-                                    Instruction *ni = &n->front();
-                                    while (ni != n->getTerminator() &&
-                                           !(isa<StoreInst>(ni) ||
-                                             isa<CallInst>(ni))) {
-                                        ni = nextInst(ni);
+                                if (isa<BranchInst>(I)) {
+                                    BranchInst *BI = dyn_cast<BranchInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < BI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = BI->getSuccessor(i);
+                                        Instruction *ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<StoreInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (in[ni]) {
+                                            out_res = true;
+                                        }
                                     }
-                                    if (in[ni]) {
-                                        out_res = true;
+                                } else if (isa<SwitchInst>(I)) {
+                                    SwitchInst *SI = dyn_cast<SwitchInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < SI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = SI->getSuccessor(i);
+                                        Instruction *ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<StoreInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (in[ni]) {
+                                            out_res = true;
+                                        }
                                     }
-                                }
-                            } else if (isa<IndirectBrInst>(I)) {
-                                IndirectBrInst *IBI =
-                                    dyn_cast<IndirectBrInst>(I);
-                                for (unsigned int i = 0;
-                                     i < IBI->getNumSuccessors(); i++) {
-                                    BasicBlock *n = IBI->getSuccessor(i);
-                                    Instruction *ni = &n->front();
-                                    while (ni != n->getTerminator() &&
-                                           !(isa<StoreInst>(ni) ||
-                                             isa<CallInst>(ni))) {
-                                        ni = nextInst(ni);
+                                } else if (isa<IndirectBrInst>(I)) {
+                                    IndirectBrInst *IBI =
+                                        dyn_cast<IndirectBrInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < IBI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = IBI->getSuccessor(i);
+                                        Instruction *ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<StoreInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (in[ni]) {
+                                            out_res = true;
+                                        }
                                     }
-                                    if (in[ni]) {
-                                        out_res = true;
-                                    }
-                                }
-                            } else if (isa<ReturnInst>(I)) {
+                                } else if (isa<ReturnInst>(I)) {
 
-                            } else if (isa<UnreachableInst>(I)) {
+                                } else if (isa<UnreachableInst>(I)) {
+
+                                } else {
+                                    DEBUG_MSG(errs() << "Unknown: " << *I << "\n");
+                                }
+
+                            } else if (isa<StoreInst>(I) || isa<CallInst>(I)) {
+
+                                Instruction *ni = I;
+                                do {
+                                    ni = nextInst(ni);
+                                } while (
+                                    ni != BB.getTerminator() &&
+                                    !(isa<StoreInst>(ni) || isa<CallInst>(ni)));
+                                assert(ni);
+
+                                // DEBUG_MSG(errs() << "Current: " << *I << " Next: " << *ni << " Live: " << (in[ni]? "true":"false" )<< "\n");
+                                out_res = in[ni];
 
                             } else {
+                                continue;
                             }
 
-                        } else if (isa<StoreInst>(I) || isa<CallInst>(I)) {
+                            /* Update if anything changes */
+                            if (out_res != out[I]) {
+                                // DEBUG_MSG(errs() << *I << " =x= " << *AI << "\n");
+                                out[I] = out_res;
+                                // DEBUG_MSG(errs() << "stores_to_instr " << *AI << "\n");
+                                // for (auto i : stores_to_instr[AI]) {
+                                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
+                                // }
+                                if (std::find(stores_to_instr[AI].begin(),
+                                            stores_to_instr[AI].end(),
+                                            I) != stores_to_instr[AI].end()) {
+                                    stores.insert(cast<StoreInst>(I));
+                                }
+                                changed = true;
+                            }
 
-                            Instruction *ni = I;
-                            do {
-                                ni = nextInst(ni);
-                            } while (
-                                ni != BB.getTerminator() &&
-                                !(isa<StoreInst>(ni) || isa<CallInst>(ni)));
-                            assert(ni);
-                            out_res = in[ni];
+                            // if (isa<StoreInst>(I)) {
+                            //     StoreInst *SI = dyn_cast<StoreInst>(I);
 
-                        } else {
-                            continue;
-                        }
+                            //     // if (SI->getValueOperand()
+                            //     //         ->getType()
+                            //     //         ->isPointerTy()) {
+                            //     AllocaInst *ai =
+                            //         getStackPtr(SI->getPointerOperand());
+                            //     if (AI == ai) {
+                            //         in_res = false;
+                            //         if (out[I]) {
+                            //             stores.insert(SI);
+                            //         }
+                            //     }
+                                // }
+                            // }
 
-                        /* Update if anything changes */
-                        if (out_res != out[I]) {
-                            out[I] = out_res;
-                            changed = true;
                         }
                     }
                 }
+                
             }
+            /* Forward analysis to see which load instructions can call instructions reach */
+            {            
+                /* If a instruction can reach a target CallInst in calls */
+                std::unordered_map<Instruction *, bool> in;
+                std::unordered_map<Instruction *, bool> out;
+                /* Init result */
+                for (Instruction *ci : calls[AI]) {
+                    out[ci] = true;
+                }
+                // for (auto si : stores_to_instr[AI]) {
+                //     in[si] = false;
+                // }
+                bool changed = true, cur_changed = false;
+
+
+                while (changed) {
+                    changed = false;
+                    for (BasicBlock &BB : F) {
+                        for (auto it = BB.begin(), e = BB.end(); it != e; it++) {
+                            cur_changed = false;
+                            Instruction *I = &*it;
+                            if (in[I] != out[I]) {
+                                if (std::find(stores_to_instr[AI].begin(),
+                                              stores_to_instr[AI].end(), I)
+                                            == stores_to_instr[AI].end() &&
+                                    std::find(loads_to_instr[AI].begin(),
+                                              loads_to_instr[AI].end(), I)
+                                            == loads_to_instr[AI].end()) {
+                                    out[I] = out[I] | in[I];
+                                }
+                            }
+
+                            bool in_res;
+                            Instruction *ni;
+
+                            if (I == BB.getTerminator()) {
+
+
+                                if (isa<BranchInst>(I)) {
+                                    BranchInst *BI = dyn_cast<BranchInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < BI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = BI->getSuccessor(i);
+                                        ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<LoadInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (out[I] && !in[ni]) {
+                                            in[ni] = true;
+                                            cur_changed = true;
+                                        }
+                                    }
+                                } else if (isa<SwitchInst>(I)) {
+                                    SwitchInst *SI = dyn_cast<SwitchInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < SI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = SI->getSuccessor(i);
+                                        ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<LoadInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (out[I] && !in[ni]) {
+                                            in[ni] = true;
+                                            cur_changed = true;
+                                        }
+                                    }
+                                } else if (isa<IndirectBrInst>(I)) {
+                                    IndirectBrInst *IBI =
+                                        dyn_cast<IndirectBrInst>(I);
+                                    for (unsigned int i = 0;
+                                        i < IBI->getNumSuccessors(); i++) {
+                                        BasicBlock *n = IBI->getSuccessor(i);
+                                        ni = &n->front();
+                                        while (ni != n->getTerminator() &&
+                                            !(isa<LoadInst>(ni) ||
+                                                isa<CallInst>(ni))) {
+                                            ni = nextInst(ni);
+                                        }
+                                        if (out[I] && !in[ni]) {
+                                            in[ni] = true;
+                                            cur_changed = true;
+                                        }
+                                    }
+                                } else if (isa<ReturnInst>(I)) {
+
+                                } else if (isa<UnreachableInst>(I)) {
+
+                                } else {
+                                    DEBUG_MSG(errs() << "Unknown: " << *I << "\n");
+                                }
+
+                            } else if (isa<LoadInst>(I) || isa<StoreInst>(I) || isa<CallInst>(I)) {
+
+                                ni = I;
+                                do {
+                                    ni = nextInst(ni);
+                                } while (
+                                    ni != BB.getTerminator() &&
+                                    !(isa<LoadInst>(ni) || isa<StoreInst>(I) || isa<CallInst>(ni)));
+                                assert(ni);
+
+                                in_res = in[ni];
+                                if (in_res)
+                                    continue;
+                                    
+
+                                // DEBUG_MSG(errs() << "Current: " << *I << ", Next: " << *ni << ", Live: " << (out[I]? "true":"false" ) << (in[ni]? " true":" false" ) << "\n");
+                                if (out[I] && !in[ni]) {
+                                    in[ni] = true;
+                                    cur_changed = true;
+                                }
+
+                            } else {
+                                continue;
+                            }
+
+                            /* Update if anything changes */
+                            if (cur_changed) {
+                                changed = true;
+                                // DEBUG_MSG(errs() << *ni << " == " << *AI << "\n");
+                                if (std::find(loads_to_instr[AI].begin(),
+                                            loads_to_instr[AI].end(),
+                                            ni) != loads_to_instr[AI].end()) {
+                                    loads.insert(cast<LoadInst>(ni));
+                                    // DEBUG_MSG(errs() << "Adding\n");
+                                }
+                            }
+                        }
+                    }
+                }
+                
+            }
+
         }
         return false;
     }
@@ -265,7 +437,8 @@ struct LivenessAnalysis {
                 } else if (isa<LoadInst>(I)) {
                     LoadInst *LI = dyn_cast<LoadInst>(I);
 
-                    if (LI->getPointerOperand()->getType()
+                    if (LI->getPointerOperand()
+                            ->getType()
                             ->getPointerElementType()
                             ->isPointerTy()) {
 
@@ -498,7 +671,7 @@ struct HeapExpoStackTracker : public FunctionPass,
         DEBUG_MSG(errs() << "HeapExpo: ");
         DEBUG_MSG(errs().write_escaped(demangleName(F.getName())) << '\n');
 
-        DEBUG_MSG(errs() << F << "\n");
+        // DEBUG_MSG(errs() << F << "\n");
         if (M != F.getParent()) {
             M = F.getParent();
             // initialized = false;
@@ -510,13 +683,12 @@ struct HeapExpoStackTracker : public FunctionPass,
         Func = &F;
         for (inst_iterator i = inst_begin(F), e = inst_end(F); i != e; i++) {
             Instruction *I = &*i;
-            DEBUG_MSG(errs() << "Instruction: " << *I << "\n");
-            if (isa<StoreInst>(I) && !isa<AllocaInst>(I)) {
+            // DEBUG_MSG(errs() << "Instruction: " << *I << "\n");
+            if (isa<StoreInst>(I)) {
                 DEBUG_MSG(errs() << "Store instruction: " << *I << "\n");
                 StoreInst *SI = dyn_cast<StoreInst>(I);
 
-                if (SI && SI->getPointerOperand() &&
-                    SI->getPointerOperand()->getType()->isPointerTy()) {
+                if (SI->getPointerOperand()->getType()->isPointerTy()) {
 
                     AllocaInst *AI = getStackPtr(SI->getPointerOperand());
                     if (AI) {
@@ -528,6 +700,7 @@ struct HeapExpoStackTracker : public FunctionPass,
                             // stack_store_instr_cnt ++;
                         } else {
                             DEBUG_MSG(errs() << "Value is a ptr\n");
+                            // DEBUG_MSG(errs() << "AI: " << *AI << " Store: " << *SI << "\n");
                             stores_to_instr[AI].push_back(SI);
                         }
                     }
@@ -536,13 +709,15 @@ struct HeapExpoStackTracker : public FunctionPass,
 
                 DEBUG_MSG(errs() << "Load instruction: " << *I << "\n");
                 LoadInst *LI = dyn_cast<LoadInst>(I);
-
-                AllocaInst *AI = getStackPtr(LI->getPointerOperand());
-                if (AI && AI->getAllocatedType()->isPointerTy()) {
-                    stack_ptrs.insert(AI);
-
-                    loads_to_instr[AI].push_back(LI);
+                if (LI->getType()->isPointerTy()) {
+                    AllocaInst *AI = getStackPtr(LI->getPointerOperand());
+                    if (AI) {
+                        stack_ptrs.insert(AI);
+                        DEBUG_MSG(errs() << "Value is a ptr\n");        
+                        loads_to_instr[AI].push_back(LI);
+                    }
                 }
+
 
             } else if (isa<CallInst>(I)) {
 
@@ -609,15 +784,11 @@ struct HeapExpoStackTracker : public FunctionPass,
         /* Liveness */
         getFunctionLiveness(F);
 
-        // DEBUG_MSG(errs() << F << "\n");
-        // for (AllocaInst *AI : stack_ptrs) {
-        //     DEBUG_MSG(errs() << *AI << "\n");
-        // }
-
         std::set<AllocaInst *> aset;
+        std::map<AllocaInst *, std::set<CallInst *>> live_calls;
         for (CallInst *CI : calls_to_instr) {
 
-            bool v = false;
+            // bool v = false;
 
             for (AllocaInst *AI : stack_ptrs) {
                 if (out.find(CI) != out.end() &&
@@ -626,58 +797,63 @@ struct HeapExpoStackTracker : public FunctionPass,
                     /* No need to check in production */
                     // instrCheck(CI, AI, stack_vars[AI]);
                     aset.insert(AI);
-                    v = true;
+                    live_calls[AI].insert(CI);
+                    // v = true;
                 }
             }
 
             // if (v)
             //     instrVoid(CI);
         }
-        // DEBUG_MSG(errs() << "Aset:\n");
+
+        // DEBUG_MSG(errs() << "Alloca instructions to track:\n");
         // for (AllocaInst *AI : aset) {
         //     DEBUG_MSG(errs() << *AI << "\n");
         // }
+        // DEBUG_MSG(errs() << "Calls to instrument:\n");
+        // for (CallInst *CI : calls_to_instr) {
+        //     DEBUG_MSG(errs() << *CI << "\n");
+        // }
+        // DEBUG_MSG(errs() << "Live calls:\n");
+        // for (auto p: live_calls) {
+        //     DEBUG_MSG(errs() << *p.first << " [");
+        //     for (auto v: p.second) {
+        //         DEBUG_MSG(errs() << *v << ", ");
+        //     }
+        //     DEBUG_MSG(errs() << "]\n");
+        // }
+
+        getStoreInstructionLiveness(F, live_calls, aset, stores_to_instr, loads_to_instr);
+
+        for (StoreInst *SI : stores) {
+            // instrStackReg(SI);
+            DEBUG_MSG(errs() << "Volatilize store: " << *SI << "\n");
+            SI->setVolatile(true);
+            // stack_store_instr_cnt++;
+        }
+        for (LoadInst *LI : loads) {
+            DEBUG_MSG(errs() << "Volatilize load: " << *LI << "\n");
+            LI->setVolatile(true);
+        }
+
+        /*
         for (AllocaInst *AI : aset) {
             for (StoreInst *SI : stores_to_instr[AI]) {
                 // instrStackReg(SI);
-                // DEBUG_MSG(errs() << *SI << "\n");
+                DEBUG_MSG(errs() << *SI << "\n");
                 SI->setVolatile(true);
                 // stack_store_instr_cnt++;
             }
             for (LoadInst *LI : loads_to_instr[AI]) {
-                // DEBUG_MSG(errs() << *LI << "\n");
+                DEBUG_MSG(errs() << *LI << "\n");
                 LI->setVolatile(true);
+                // stack_store_instr_cnt++;
             }
         }
-        /*
-        getStoreInstructionLiveness(F, calls_to_instr, aset, stores_to_instr);
-
-        DEBUG_MSG(errs() << "Aset:\n");
-        for (AllocaInst *AI : aset) {
-            DEBUG_MSG(errs() << *AI << "\n");
-        }
-        for (StoreInst* SI: stores) {
-            //instrStackReg(SI);
-            DEBUG_MSG(errs() << *SI << "\n");
-            SI->setVolatile(true);
-            //stack_store_instr_cnt++;
-        }
-        */
-
-        /*
-         for (AllocaInst *AI : aset) {
-             for (StoreInst *SI : stores_to_instr[AI]) {
-                 // instrStackReg(SI);
-                 DEBUG_MSG(errs() << *SI << "\n");
-                 SI->setVolatile(true);
-                 // stack_store_instr_cnt++;
-             }
-         }
          */
 
         stack_ptrs.clear();
         calls_to_instr.clear();
-        // DEBUG_MSG(errs() << F << "\n");
         return false;
     }
 };
