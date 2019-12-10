@@ -1,7 +1,7 @@
 CC=g++
 CONFIG=/home/zekun/repo/dangsan-build/dangsan/autosetup.dir/install/common/bin/llvm-config
 INCLUDES=-I. -I../staticlib -I../metapagetable
-CFLAGS=-Wall -std=c++0x -g `$(CONFIG) --cxxflags` -O0
+CFLAGS=-Wall -std=c++0x -g `$(CONFIG) --cxxflags` -O2
 LDFLAGS=-g -shared `$(CONFIG) --ldflags`
 
 
