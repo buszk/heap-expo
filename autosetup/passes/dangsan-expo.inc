@@ -11,7 +11,8 @@ CONFIG_SAFESTACK_OPTIONS="largestack=true"
 CONFIG_ALLOC_SIZE_HOOK=dang_alloc_size_hook
 
 # safestack
-cflags="$cflags -fsanitize=safe-stack -Xclang -load -Xclang $PATHLLVMPLUGINS/LLVMHeapExpo.so"
+cflags="$cflags -fsanitize=safe-stack"
+cflagsop="-Xclang -load -Xclang $PATHLLVMPLUGINS/LLVMHeapExpo.so"
 ldflagsalways="$ldflagsalways -fsanitize=safe-stack"
 
 # passes

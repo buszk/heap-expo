@@ -13,8 +13,8 @@ for conftype in build run; do
 		echo "CC          = $cc $cflagsbl"
 		echo "CXX         = $cxx $cflagsbl"
 		echo "FC          = `which false`"
-		echo "COPTIMIZE   = -O2 -fno-strict-aliasing -std=gnu89"
-		echo "CXXOPTIMIZE = -O2 -fno-strict-aliasing"
+		echo "COPTIMIZE   = -O2 -fno-strict-aliasing -std=gnu89 $cflagsop"
+		echo "CXXOPTIMIZE = -O2 -fno-strict-aliasing $cflagsop"
 		echo "CLD         = $cc $ldflagsalways $ldflagsnolib"
 		echo "CXXLD       = $cxx $ldflagsalways $ldflagsnolib"
 		if [ "$conftype" = build -a ${#post_build_hooks[@]} -gt 0 ]; then

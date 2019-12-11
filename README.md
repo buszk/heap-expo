@@ -38,7 +38,7 @@ It requires a number of packages to be installed, depending on the particular
 Linux distribution used. In case of Ubuntu 16.04.2 LTS, the following command
 installs the required packages (on a clean server installation):
 
-    sudo apt-get install bison build-essential gettext git pkg-config python ssh subversion
+    sudo apt-get install bison build-essential gettext git pkg-config python ssh subversion wget time
 
 Our prototype includes scripts to instrument the SPEC CPU2006 and PARSEC
 benchmarks. While PARSEC is open source and automatically downloaded installed
@@ -53,14 +53,16 @@ Both of these are optional.
 
 First, obtain the DangSan source code:
 
-    git clone https://github.com/vusec/dangsan.git
+    git clone https://github.com/buszk/dangsan-expo.git
 
 The following command automatically installs remaining dependencies locally
 (no need for root access), builds DangSan, builds all targets for all instances,
 and generate scripts to run the targets conveniently:
 
-    cd dangsan
+    cd dangsan-expo
+    git checkout dev
     PATHSPEC=/path/to/spec/cpu2006 ./autosetup.sh
+    FORCE_UNSAFE_CONFIGURE=1 PATHSPEC=/path/to/spec/cpu2006 ./autosetup.sh
 
 To control which targets are built, set and export the TARGETS environment
 variable to a space-separated (possibly empty) list of desired targets.

@@ -17,7 +17,7 @@ corecount="`grep '^processor' /proc/cpuinfo|wc -l`"
 : ${EXTRA_CFLAGS:=""}
 : ${EXTRA_LDFLAGS:=""}
 : ${JOBS="$corecount"}
-: ${NO_PACKAGES:=1}
+: ${NO_PACKAGES:=0}
 : ${NO_PERL:=0}
 
 # framework
