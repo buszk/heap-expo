@@ -17,7 +17,7 @@ corecount="`grep '^processor' /proc/cpuinfo|wc -l`"
 : ${EXTRA_CFLAGS:=""}
 : ${EXTRA_LDFLAGS:=""}
 : ${JOBS="$corecount"}
-: ${NO_PACKAGES:=0}
+: ${NO_PACKAGES:=1}
 : ${NO_PERL:=0}
 
 # framework
@@ -254,6 +254,10 @@ done
 echo "building nothp"
 cd "$PATHROOT/nothp"
 run make
+
+echo "building heap-expo-plugin"
+cd "$PATHROOT/heap-expo-plugin"
+run make TARGETDIR="$PATHLLVMPLUGINS"
 
 # Configure targets
 for instance in $INSTANCES; do
