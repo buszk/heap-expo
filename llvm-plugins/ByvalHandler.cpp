@@ -5,26 +5,29 @@
  *      Author: haller
  */
 
-#include <llvm/Pass.h>
-#include <llvm/IR/Module.h>
+#include <llvm/CodeGen/TargetLowering.h>
+#include <llvm/CodeGen/TargetSubtargetInfo.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Intrinsics.h>
-#include <llvm/IR/Constant.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Module.h>
+#include <llvm/Pass.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/raw_ostream.h>
-#include <llvm/Target/TargetLowering.h>
-#include <llvm/Target/TargetSubtargetInfo.h>
 #include <llvm/Transforms/Utils/Local.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 
-#include <string>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
+
 #include <list>
 #include <set>
+#include <string>
 #include <vector>
 
 #include <Utils.h>
@@ -37,14 +40,14 @@ struct ByvalHandler : public FunctionPass {
     Module *M;
     const DataLayout *DL;
     SafetyManager *SM;
-    Type* VoidTy;
+    Type *VoidTy;
     IntegerType *Int1Ty;
     IntegerType *Int8Ty;
     IntegerType *Int32Ty;
     IntegerType *IntPtrTy;
     PointerType *PtrVoidTy;
 
-    //declare void @llvm.memcpy.p0i8.p0i8.i64(i8 *, i8 *, i64, i32, i1)
+    // declare void @llvm.memcpy.p0i8.p0i8.i64(i8 *, i8 *, i64, i32, i1)
     Function *MemcpyFunc;
 
     ByvalHandler() : FunctionPass(ID) { initialized = false; }
@@ -53,14 +56,16 @@ struct ByvalHandler : public FunctionPass {
         if (!initialized)
             doInitialization(F.getParent());
 
-        SM = new SafetyManager(DL, &getAnalysis<ScalarEvolutionWrapperPass>().getSE());
-                      
+        SM = new SafetyManager(
+            DL, &getAnalysis<ScalarEvolutionWrapperPass>().getSE());
+
         for (auto &a : F.args()) {
             Argument *Arg = dyn_cast<Argument>(&a);
             unsigned long Size = SM->GetByvalArgumentSize(Arg);
             if (Arg->hasByValAttr() && !SM->IsSafeStackAlloca(Arg, Size)) {
-                IRBuilder<> B(F.getEntryBlock().getFirstInsertionPt());
-                Value *NewAlloca = B.CreateAlloca(Arg->getType()->getPointerElementType());
+                IRBuilder<> B(F.getEntryBlock().getFirstNonPHI());
+                Value *NewAlloca =
+                    B.CreateAlloca(Arg->getType()->getPointerElementType());
                 Arg->replaceAllUsesWith(NewAlloca);
                 Value *Src = B.CreatePointerCast(Arg, PtrVoidTy);
                 Value *Dst = B.CreatePointerCast(NewAlloca, PtrVoidTy);
@@ -81,12 +86,12 @@ struct ByvalHandler : public FunctionPass {
 
     bool doInitialization(Module *Mod) {
         M = Mod;
-        
+
         DL = &(M->getDataLayout());
         if (!DL)
             report_fatal_error("Data layout required");
-    
-	    // Type definitions
+
+        // Type definitions
         VoidTy = Type::getVoidTy(M->getContext());
         Int1Ty = Type::getInt1Ty(M->getContext());
         Int8Ty = Type::getInt8Ty(M->getContext());
@@ -94,24 +99,27 @@ struct ByvalHandler : public FunctionPass {
         IntPtrTy = DL->getIntPtrType(M->getContext(), 0);
         PtrVoidTy = PointerType::getUnqual(Type::getInt8Ty(M->getContext()));
 
-        //declare void @llvm.memcpy.p0i8.p0i8.i64(i8 *, i8 *, i64, i32, i1)
-        Type *Tys[] = { PtrVoidTy, PtrVoidTy, IntPtrTy };
+        // declare void @llvm.memcpy.p0i8.p0i8.i64(i8 *, i8 *, i64, i32, i1)
+        Type *Tys[] = {PtrVoidTy, PtrVoidTy, IntPtrTy};
         MemcpyFunc = Intrinsic::getDeclaration(M, Intrinsic::memcpy, Tys);
 
         initialized = true;
-        
+
         return false;
     }
-    
+
     void getAnalysisUsage(AnalysisUsage &AU) const override {
         AU.addRequired<ScalarEvolutionWrapperPass>();
     }
-
 };
 
 char ByvalHandler::ID = 0;
-static RegisterPass<ByvalHandler> X("byvalhandler", "Byval Handler Pass", true, false);
-
-
-
-
+static RegisterPass<ByvalHandler> X("byvalhandler", "Byval Handler Pass", true,
+                                    false);
+static void registerByvalHandler(const PassManagerBuilder &,
+                                 legacy::PassManagerBase &PM) {
+    PM.add(new ByvalHandler());
+}
+static RegisterStandardPasses
+    RegisterByvalHandler(PassManagerBuilder::EP_OptimizerLast,
+                         registerByvalHandler);
