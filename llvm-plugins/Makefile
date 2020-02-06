@@ -20,10 +20,10 @@ DEPS    := $(OBJS:.o=.d)
 all: $(EXE) $(EXE2)
 
 clean:
-	rm $(OBJDIR)/*.o
-	rm $(OBJDIR)/*.d
-	rm $(EXE)
-	rm $(EXE2)
+	rm -f $(OBJDIR)/*.o
+	rm -f $(OBJDIR)/*.d
+	rm -f $(EXE)
+	rm -f $(EXE2)
 
 $(EXE): $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) $(LINKWITHGOLDFLAGS) -o $@

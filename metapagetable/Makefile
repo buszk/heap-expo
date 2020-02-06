@@ -23,22 +23,28 @@ clean:
 	rm -f linker-options
 	rm -f metapagetable.h
 
-$(EXE): $(OBJS) directories
+$(EXE): $(OBJS)
+	ls $(OBJS)
+	mkdir -p $(OBJDIR)
 	ar crv $@ $(OBJS)
 	ranlib $@
 
-$(EXE2): $(OBJS2) directories
+$(EXE2): $(OBJS2)
+	mkdir -p $(OBJDIR)
 	$(LINKER) $(OBJS2) $(LDFLAGS) -o $@
 
 -include $(DEPS)
 
-$(OBJDIR)/%.o: %.c directories
-	$(CC) $(INCLUDES) $(CFLAGS) -MT $@ -MMD -o $@ $<
+$(OBJDIR)/%.o: %.c  $(OBJDIR)/metapagetable.h
+	mkdir -p $(OBJDIR)
+	$(CC) $(INCLUDES) $(CFLAGS) -o $@ $<
 
-$(OBJDIR)/%.lo: %.c directories
+$(OBJDIR)/%.lo: %.c  $(OBJDIR)/metapagetable.h
+	mkdir -p $(OBJDIR)
 	$(LTCC) $(INCLUDES) $(CFLAGS) -MT $@ -MMD -o $@ $<
 
-$(OBJDIR)/metapagetable.h: metapagetable.h.in linker-options.in config_metapagetable.cmake directories
+$(OBJDIR)/metapagetable.h: metapagetable.h.in linker-options.in config_metapagetable.cmake
+	mkdir -p $(OBJDIR)
 	rm -f metapagetable.h
 	rm -f linker-options
 	rm -f $(OBJDIR)/metapagetable.h
@@ -47,7 +53,8 @@ $(OBJDIR)/metapagetable.h: metapagetable.h.in linker-options.in config_metapaget
 	mv linker-options $(OBJDIR)
 	cp metapagetable.h $(OBJDIR)
 
-$(OBJDIR)/metapagetable_core.h: metapagetable_core.h directories
+$(OBJDIR)/metapagetable_core.h: metapagetable_core.h
+	mkdir -p $(OBJDIR)
 	cp metapagetable_core.h $(OBJDIR)
 
 touch_config:

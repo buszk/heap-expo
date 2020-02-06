@@ -1,0 +1,19 @@
+language: c
+compiler: clang
+
+os: linux
+dist: xenial
+
+before_install:
+  - echo "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-10 main" | sudo tee -a /etc/apt/sources.list 
+  - echo "deb-src http://apt.llvm.org/xenial/ llvm-toolchain-xenial-10 main" | sudo tee -a /etc/apt/sources.list 
+  - sudo apt-get update
+  - sudo apt-get install -y libtool-bin libunwind-dev
+  - sudo apt-get install -y --allow-unauthenticated libllvm-10-ocaml-dev libllvm10 llvm-10 llvm-10-dev llvm-10-doc llvm-10-runtime
+  - sudo apt-get install -y --allow-unauthenticated clang-10 clang-tools-10 libclang-common-10-dev libclang-10-dev libclang1-10
+  - sudo apt-get install -y --allow-unauthenticated libc++-10-dev libc++abi-10-dev
+
+script:
+  - cd gperftools-metalloc && ./autogen.sh && ./configure && cd ..
+  - make -j
+  - make test -j
