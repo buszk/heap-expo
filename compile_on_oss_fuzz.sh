@@ -10,19 +10,14 @@ rm -f $(which llvm-config)-10
 ln -s $(which llvm-config) $(which llvm-config)-10
 
 # Build HeapExpo
-make -j
+CC=clang CXX=clang++ make -j
 
-# Export flags
-CFLAGS_EXTRA="-Xclang -load -Xclang $ROOT/llvm-plugins/libplugins-opt.so"
-CFLAGS=${CFLAGS//-O1}
-CFLAGS=${CFLAGS//-fsanitize=address}
-CFLAGS=${CFLAGS//-fsanitize-address-use-after-scope}
-export CFLAGS="$CFLAGS $CFLAGS_EXTRA"
-echo "CFLAGS = $CFLAGS"
-
-CXXFLAGS=${CXXFLAGS//-fsanitize=address}
-CXXFLAGS=${CXXFLAGS//-fsanitize-address-use-after-scope}
-export CXXFLAGS="$CXXFLAGS $CFLAGS_EXTRA"
-
-LDFLAGS_EXTRA="$ROOT/staticlib/obj/libmetadata.a $ROOT/metapagetable/obj/libmetapagetable.a $ROOT/gperftools-metalloc/.libs/libtcmalloc.a"
-export LDFLAGS="$LDFLAGS_EXTRA"
+git clone https://github.com/buszk/compiler-wrapper /src/compiler-wrapper
+CXX=clang++ CXXFLAGS="" make -C /src/compiler-wrapper
+$ROOT/gen_wrapper_config.sh  > /src/compiler-wrapper/templates/heap-expo
+export WRAP_CONFIG=/src/compiler-wrapper/templates/heap-expo
+export CC=/src/compiler-wrapper/compiler-wrapper
+export CXX=/src/compiler-wrapper/compiler-wrapper++
+export CFLAGS="-O2 -g"
+export CXXFLAGS="-O2 -g"
+export LDFLAGS=

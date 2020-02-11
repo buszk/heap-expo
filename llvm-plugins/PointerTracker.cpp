@@ -213,8 +213,8 @@ struct PointerTracker : public FunctionPass {
     }
 
     void getAnalysisUsage(AnalysisUsage &AU) const override {
-        AU.addRequired<AAResultsWrapperPass>();
         AU.addRequired<MemoryDependenceWrapperPass>();
+        AU.addRequired<AAResultsWrapperPass>();
         AU.addPreserved<AAResultsWrapperPass>();
     }
 
@@ -483,6 +483,8 @@ static RegisterPass<PointerTracker> X("pointertracker", "Pointer Tracker Pass",
 static void registerPointerTracker(const PassManagerBuilder &,
                                    legacy::PassManagerBase &PM) {
     DEBUG_MSG(errs() << "Adding PointerTracker\n");
+    PM.add(new MemoryDependenceWrapperPass());
+    PM.add(new AAResultsWrapperPass());
     PM.add(new PointerTracker());
 }
 static RegisterStandardPasses
