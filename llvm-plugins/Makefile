@@ -3,12 +3,12 @@ CC=clang-$(LLVM_VERSION)
 CONF=llvm-config-$(LLVM_VERSION)
 INCLUDES=-I. -I../staticlib -I../metapagetable
 CFLAGS=-c -Wall -g `$(CONF) --cxxflags` -O0 -fPIC
-LDFLAGS=-g -shared `$(CONF) --ldflags` -lLLVM -lstdc++ -Wl,-znodelete
+LDFLAGS=-g -shared `$(CONF) --ldflags` -lstdc++ -Wl,-znodelete
 TARGETDIR=.
 OBJDIR=$(TARGETDIR)/obj
 #GOLDINSTDIR=$(METALLOC_HOME)/autosetup.dir/install/common
 GOLDINSTDIR=/usr/lib/llvm-$(LLVM_VERSION)
-LINKWITHGOLDFLAGS=-Wl,--no-undefined -L $(GOLDINSTDIR)/lib/ -l:LLVMgold.so -Wl,--rpath=$(GOLDINSTDIR)/lib
+LINKWITHGOLDFLAGS=-Wl,--no-undefined -L $(GOLDINSTDIR)/lib/ -l:LLVMgold.so -Wl,--rpath=$(GOLDINSTDIR)/lib -lLLVM
 
 EXE=$(TARGETDIR)/libplugins.so
 EXE2=$(TARGETDIR)/libplugins-opt.so
@@ -18,6 +18,8 @@ OBJS    := $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
 DEPS    := $(OBJS:.o=.d)
 
 all: $(EXE) $(EXE2)
+
+opt: $(EXE2)
 
 clean:
 	rm -f $(OBJDIR)/*.o
