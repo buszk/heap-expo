@@ -68,6 +68,8 @@ def processbenchmark(specdir, instancename, benchmark):
 	commands = getCommands(rundir)
 	for command in commands:
 		timeCommand = list()
+                if len(command) >= 3 and command[:3] == "-E ":
+			continue
 		timeCommand.insert(0, " ".join(commandGetArgv(command)))
 		timeCommand.insert(0, "/usr/bin/time")
 		timeCommand.insert(1, "-vo")

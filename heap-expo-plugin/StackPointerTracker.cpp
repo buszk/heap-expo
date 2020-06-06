@@ -701,7 +701,11 @@ struct HeapExpoStackTracker : public FunctionPass,
                         } else {
                             DEBUG_MSG(errs() << "Value is a ptr\n");
                             // DEBUG_MSG(errs() << "AI: " << *AI << " Store: " << *SI << "\n");
+#if 0
+			    SI->setVolatile(true);
+#else
                             stores_to_instr[AI].push_back(SI);
+#endif
                         }
                     }
                 }
@@ -714,7 +718,11 @@ struct HeapExpoStackTracker : public FunctionPass,
                     if (AI) {
                         stack_ptrs.insert(AI);
                         DEBUG_MSG(errs() << "Value is a ptr\n");        
+#if 0
+			LI->setVolatile(true);
+#else
                         loads_to_instr[AI].push_back(LI);
+#endif
                     }
                 }
 
@@ -780,6 +788,9 @@ struct HeapExpoStackTracker : public FunctionPass,
                     calls_to_instr.push_back(CI);
             }
         }
+#if 0
+	return false;
+#endif
 
         /* Liveness */
         getFunctionLiveness(F);
