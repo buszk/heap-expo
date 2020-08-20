@@ -45,8 +45,8 @@ clean:
 	rm -f $(EXE)
 
 $(EXE): $(OBJS) directories
-	llvm-ar crv $@ $(OBJS)
-	llvm-ranlib $@
+	llvm-ar-10 crv $@ $(OBJS)
+	llvm-ranlib-10 $@
 
 -include $(DEPS)
 

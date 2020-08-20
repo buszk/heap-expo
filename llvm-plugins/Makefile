@@ -12,14 +12,17 @@ LINKWITHGOLDFLAGS=-Wl,--no-undefined -L $(GOLDINSTDIR)/lib/ -l:LLVMgold.so -Wl,-
 
 EXE=$(TARGETDIR)/libplugins.so
 EXE2=$(TARGETDIR)/libplugins-opt.so
+EXEDS=$(TARGETDIR)/libplugins-dangsan.so
 
 SRCS    := $(wildcard *.cpp)
+SRCSDS  := $(filter-out StackPointerTracker.cpp,$(SRCS))
 OBJS    := $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCS))
+OBJSDS  := $(patsubst %.cpp,$(OBJDIR)/%.o,$(SRCSDS))
 DEPS    := $(OBJS:.o=.d)
 
-all: $(EXE) $(EXE2)
+all: $(EXE) $(EXE2) $(EXEDS)
 
-opt: $(EXE2)
+opt: $(EXE2) $(EXEDS)
 
 clean:
 	rm -f $(OBJDIR)/*.o
@@ -32,6 +35,9 @@ $(EXE): $(OBJS)
 
 $(EXE2): $(OBJS)
 	$(CC) $(OBJS) $(LDFLAGS) -o $@
+
+$(EXEDS): $(OBJSDS)
+	$(CC) $(OBJSDS) $(LDFLAGS) -o $@
 
 -include $(DEPS)
 
