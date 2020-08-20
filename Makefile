@@ -27,3 +27,4 @@ clean:
 	make -C gperftools-metalloc distclean
 	make -C metapagetable clean
 	make -C staticlib clean
+	make -C tests clean
