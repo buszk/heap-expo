@@ -290,10 +290,10 @@ static __attribute__((always_inline)) void dang_add_log_partial(
 
     if (!dang_compress_has2(value)) {
 	STATS(dang_stats.staticlog_add_partial2++);
-	dang_compress_add2(value, ptr_addr);
+	value = dang_compress_add2(value, ptr_addr);
     } else {
 	STATS(dang_stats.staticlog_add_partial3++);
-	dang_compress_add3(value, ptr_addr);
+	value = dang_compress_add3(value, ptr_addr);
     }
     log[index] = (unsigned long *) value;
 }
