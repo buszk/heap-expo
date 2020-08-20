@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # HeapExpo
 
 ## Introduction
@@ -59,3 +60,5 @@ make test
 ```
 
 The  compared coverage test script is in [Makefile](https://github.com/buszk/heap-expo/blob/port/tests/Makefile). You can find out the tests where HeapExpo detects UAF while DangSan fails.
+=======
+>>>>>>> b00aeee... release update
