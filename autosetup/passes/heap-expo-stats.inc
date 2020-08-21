@@ -1,0 +1,3 @@
+source "$PATHROOT/autosetup/passes/heap-expo.inc"
+
+CONFIG_STATICLIB_MAKE="$CONFIG_STATICLIB_MAKE DANG_STATS=1"
