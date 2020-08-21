@@ -115,17 +115,6 @@ struct LivenessAnalysis {
                     in[ci] = true;
                 }
 
-                // DEBUG_MSG(errs() << "stores_to_instr " << *AI << "\n");
-                // for (auto i : stores_to_instr[AI]) {
-                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
-                // }
-                // DEBUG_MSG(errs() << "loads_to_instr " << *AI << "\n");
-                // for (auto i : loads_to_instr[AI]) {
-                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
-                // }
-                // for (auto si : stores_to_instr[AI]) {
-                //     in[si] = false;
-                // }
                 bool changed = true;
 
                 while (changed) {
@@ -218,7 +207,6 @@ struct LivenessAnalysis {
                                     !(isa<StoreInst>(ni) || isa<CallInst>(ni)));
                                 assert(ni);
 
-                                // DEBUG_MSG(errs() << "Current: " << *I << " Next: " << *ni << " Live: " << (in[ni]? "true":"false" )<< "\n");
                                 out_res = in[ni];
 
                             } else {
@@ -227,12 +215,7 @@ struct LivenessAnalysis {
 
                             /* Update if anything changes */
                             if (out_res != out[I]) {
-                                // DEBUG_MSG(errs() << *I << " =x= " << *AI << "\n");
                                 out[I] = out_res;
-                                // DEBUG_MSG(errs() << "stores_to_instr " << *AI << "\n");
-                                // for (auto i : stores_to_instr[AI]) {
-                                //     DEBUG_MSG(errs() << "ins: " << *i << "\n");
-                                // }
                                 if (std::find(stores_to_instr[AI].begin(),
                                             stores_to_instr[AI].end(),
                                             I) != stores_to_instr[AI].end()) {
@@ -240,23 +223,6 @@ struct LivenessAnalysis {
                                 }
                                 changed = true;
                             }
-
-                            // if (isa<StoreInst>(I)) {
-                            //     StoreInst *SI = dyn_cast<StoreInst>(I);
-
-                            //     // if (SI->getValueOperand()
-                            //     //         ->getType()
-                            //     //         ->isPointerTy()) {
-                            //     AllocaInst *ai =
-                            //         getStackPtr(SI->getPointerOperand());
-                            //     if (AI == ai) {
-                            //         in_res = false;
-                            //         if (out[I]) {
-                            //             stores.insert(SI);
-                            //         }
-                            //     }
-                                // }
-                            // }
 
                         }
                     }
@@ -712,15 +678,11 @@ struct StackVolatileOptimizer : public FunctionPass,
 
                         if (isa<ConstantPointerNull>(SI->getValueOperand())) {
                             DEBUG_MSG(errs() << "Value is a nullptr\n");
-                            // stack_store_instr_cnt ++;
                         } else {
                             DEBUG_MSG(errs() << "Value is a ptr\n");
                             // DEBUG_MSG(errs() << "AI: " << *AI << " Store: " << *SI << "\n");
-#if 0
-			    SI->setVolatile(true);
-#else
+
                             stores_to_instr[AI].push_back(SI);
-#endif
                         }
                     }
                 }
@@ -732,12 +694,8 @@ struct StackVolatileOptimizer : public FunctionPass,
                     AllocaInst *AI = getStackPtr(LI->getPointerOperand());
                     if (AI) {
                         stack_ptrs.insert(AI);
-                        DEBUG_MSG(errs() << "Value is a ptr\n");        
-#if 0
-			LI->setVolatile(true);
-#else
+                        DEBUG_MSG(errs() << "Value is a ptr\n");
                         loads_to_instr[AI].push_back(LI);
-#endif
                     }
                 }
 
@@ -814,70 +772,27 @@ struct StackVolatileOptimizer : public FunctionPass,
         std::map<AllocaInst *, std::set<CallInst *>> live_calls;
         for (CallInst *CI : calls_to_instr) {
 
-            // bool v = false;
-
             for (AllocaInst *AI : stack_ptrs) {
                 if (out.find(CI) != out.end() &&
                     out[CI].find(AI) != out[CI].end()) {
 
-                    /* No need to check in production */
-                    // instrCheck(CI, AI, stack_vars[AI]);
                     aset.insert(AI);
                     live_calls[AI].insert(CI);
-                    // v = true;
                 }
             }
 
-            // if (v)
-            //     instrVoid(CI);
         }
-
-        // DEBUG_MSG(errs() << "Alloca instructions to track:\n");
-        // for (AllocaInst *AI : aset) {
-        //     DEBUG_MSG(errs() << *AI << "\n");
-        // }
-        // DEBUG_MSG(errs() << "Calls to instrument:\n");
-        // for (CallInst *CI : calls_to_instr) {
-        //     DEBUG_MSG(errs() << *CI << "\n");
-        // }
-        // DEBUG_MSG(errs() << "Live calls:\n");
-        // for (auto p: live_calls) {
-        //     DEBUG_MSG(errs() << *p.first << " [");
-        //     for (auto v: p.second) {
-        //         DEBUG_MSG(errs() << *v << ", ");
-        //     }
-        //     DEBUG_MSG(errs() << "]\n");
-        // }
 
         getStoreInstructionLiveness(F, live_calls, aset, stores_to_instr, loads_to_instr);
 
         for (StoreInst *SI : stores) {
-            // instrStackReg(SI);
             DEBUG_MSG(errs() << "Volatilize store: " << *SI << "\n");
             SI->setVolatile(true);
-            // stack_store_instr_cnt++;
         }
         for (LoadInst *LI : loads) {
             DEBUG_MSG(errs() << "Volatilize load: " << *LI << "\n");
             LI->setVolatile(true);
         }
-
-	//errs() << F << "\n";
-        /*
-        for (AllocaInst *AI : aset) {
-            for (StoreInst *SI : stores_to_instr[AI]) {
-                // instrStackReg(SI);
-                DEBUG_MSG(errs() << *SI << "\n");
-                SI->setVolatile(true);
-                // stack_store_instr_cnt++;
-            }
-            for (LoadInst *LI : loads_to_instr[AI]) {
-                DEBUG_MSG(errs() << *LI << "\n");
-                LI->setVolatile(true);
-                // stack_store_instr_cnt++;
-            }
-        }
-         */
 
         stack_ptrs.clear();
         calls_to_instr.clear();

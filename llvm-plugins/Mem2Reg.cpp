@@ -29,9 +29,7 @@ STATISTIC(NumPromoted, "Number of alloca's promoted");
 namespace {
   struct HeapExpoPromotePass : public FunctionPass {
     static char ID; // Pass identification, replacement for typeid
-    HeapExpoPromotePass() : FunctionPass(ID) {
-      //initializeHeapExpoPromotePassPass(*PassRegistry::getPassRegistry());
-    }
+    HeapExpoPromotePass() : FunctionPass(ID) {}
 
     // runOnFunction - To run this pass, first we calculate the alloca
     // instructions that are safe for promotion, then we promote each one.
@@ -50,14 +48,7 @@ namespace {
 }  // end of anonymous namespace
 
 char HeapExpoPromotePass::ID = 0;
-/*
-INITIALIZE_PASS_BEGIN(HeapExpoPromotePass, "mem2reg", "Promote Memory to Register",
-                false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_END(HeapExpoPromotePass, "mem2reg", "Promote Memory to Register",
-                false, false)
-		*/
+
 bool HeapExpoPromotePass::runOnFunction(Function &F) {
   std::vector<AllocaInst*> Allocas;
 
@@ -86,17 +77,9 @@ bool HeapExpoPromotePass::runOnFunction(Function &F) {
     Changed = true;
   }
 
-  //errs() << "After Mem2Reg:\n" << F << "\n";
   return Changed;
 }
 
-// createPromoteMemoryToRegister - Provide an entry point to create this pass.
-//
-/*
-FunctionPass *llvm::createPromoteMemoryToRegisterPass() {
-  return new HeapExpoPromotePass();
-}
-*/
 
 static RegisterPass<HeapExpoPromotePass> X("heapexpomem2reg", "Promote Memory to Registers",
 		false, false);
