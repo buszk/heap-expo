@@ -25,6 +25,8 @@ add_lto_args -globaltracker
 add_lto_args -pointertracker
 add_lto_args -FreeSentryLoop
 add_lto_args -custominline
+add_lto_args -stackvolatileoptimizer
+add_lto_args -heapexpomem2reg
 
 # The linker does not include these symbols unless we explicitly say so
 ldflagsalways="$ldflagsalways -umetaget_$CONFIG_METADATABYTES"

@@ -281,6 +281,9 @@ for instance in $INSTANCES; do
 	instancename="$instance$INSTANCESUFFIX"
 
 	for target in $TARGETS; do
+		if [ "$target" = "parsec" ]; then
+			continue
+		fi
 		echo "building $target-$instancename"
 
 		if [ -f "$PATHROOT/autosetup/targets/$target/build.inc" ]; then
