@@ -1,5 +1,5 @@
 source "$PATHROOT/autosetup/passes/helper/reset.inc"
-source "$PATHROOT/autosetup/passes/helper/lto.inc"
+source "$PATHROOT/autosetup/passes/helper/lto-heapexpo.inc"
 
 # tcmalloc settings
 CONFIG_MALLOC=tcmalloc-metalloc
