@@ -7,11 +7,13 @@ HeapExpo is an instrumentation tool to mitigate use-after-free(UAF) vulnerabilit
 Install dependencies. 
 
 ```
-sudo apt-get install bison build-essential gettext git pkg-config python ssh subversion wget time automake libtool-bin libunwind-dev
+sudo apt-get update
+sudo apt-get install -y bison build-essential gettext git pkg-config python ssh subversion wget time vim
 ```
 
 For runnig comparision tests, you need to install llvm-10.
 ```
+sudo apt-get install -y automake libtool-bin libunwind-dev
 sudo apt-get install -y libllvm-10-ocaml-dev libllvm10 llvm-10 llvm-10-dev llvm-10-doc llvm-10-runtime clang-10 clang-tools-10 libclang-common-10-dev libclang-10-dev libclang1-10 libc++-10-dev libc++abi-10-dev
 ```
 
@@ -27,12 +29,26 @@ sudo ./llvm.sh 10
 ### Installation
 
 Run the following commands to setup
+
+#### Normal setup
 ```
 git clone https://github.com/buszk/heap-expo.git
 cd heap-expo
 PATHSPEC=/path/to/spec/cpu2006 ./autosetup.sh
-FORCE_UNSAFE_CONFIGURE=1 PATHSPEC=/path/to/spec/cpu2006 ./autosetup.sh
 ```
+#### Docker setup
+We actually recomment using a docker environment to avoid mess in your system. Create a docker container with the following command. Adjust **cpu2006** directory properly.
+```
+docker run --name heap-expo --privileged -it -v /path/to/spec/cpu2006:/cpu2006 debian:9
+```
+Inside the docker container, install depencies and then run the following script to build.
+```
+git clone https://github.com/buszk/heap-expo.git /heap-expo
+cd /heap-expo
+FORCE_UNSAFE_CONFIGURE=1 PATHSPEC=/cpu2006 ./autosetup.sh
+```
+
+After build, use `./run-spec-cpu2006-{baseline-lto,heap-expo,dangsan}.sh all` to run the benchmarks. The results available in /cpu2006/result are shown in Figure 2 of our paper. 
 
 ### Benchmarking
 
@@ -42,7 +58,7 @@ FORCE_UNSAFE_CONFIGURE=1 PATHSPEC=/path/to/spec/cpu2006 ./autosetup.sh
 
 ## Coverage Test (Compared with DangSan) 
 
-All tested c programs are located at [tests/](https://github.com/buszk/heap-expo/tree/port/tests) in port branch. 
+All tested c programs are located at [tests/](https://github.com/buszk/heap-expo/tree/port/tests) in port branch. We summarized the test results to Table 5.
 
 To provide an easy test environment, we ported HeapExpo from llvm-3.8 to llvm-10. It should also be compatible with other modern versions. We put our ported version under the port branch. In order to build our test, you can use the following commands.
 
