@@ -7,6 +7,7 @@ BENCHMARKS_SPEC_C="
 	458.sjeng
 	464.h264ref
 	470.lbm
+	471.omnetpp
 	482.sphinx3
 	"
 BENCHMARKS_SPEC_CPP="
